@@ -8,7 +8,7 @@ lazy val root = (project in file(".")).settings(
   commons,
   name := "fs2-xml",
   organization := "org.dbersenev",
-  version := "0.1.0",
+  version := "0.1.1",
   libraryDependencies ++= Seq(
     fs2Core, fs2Io, scalaXml, woodstox
   ),

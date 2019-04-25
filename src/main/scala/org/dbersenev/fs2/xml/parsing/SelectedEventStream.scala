@@ -17,12 +17,12 @@
 package org.dbersenev.fs2.xml.parsing
 
 import scala.language.higherKinds
-
 import cats._
 import cats.implicits._
 import fs2._
 import cats.effect._
-import javax.xml.stream.events.{StartElement, XMLEvent}
+import javax.xml.stream.events.{Attribute, StartElement, XMLEvent}
+import scala.collection.JavaConverters._
 
 object SelectedEventStream {
 
@@ -30,12 +30,12 @@ object SelectedEventStream {
   import XMLSelector._
 
   private case class SelectionConfig(
-                              isWithin:Boolean = false,
-                              lastMainPop:Option[XMLSelectorElement] = None,
-                              ignoreInnerEvents:Boolean = false
-                            )
+                                      isWithin: Boolean = false,
+                                      lastMainPop: Option[XMLSelectorElement] = None,
+                                      ignoreInnerEvents: Boolean = false
+                                    )
 
-  def apply[F[_]:RaiseThrowable](selector:String)(stream:Stream[F,XMLEvent]):Stream[F,XMLEvent] =
+  def apply[F[_] : RaiseThrowable](selector: String)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] =
     apply(XMLSelector(selector.selPath))(stream)
 
   def apply[F[_] : RaiseThrowable](selector: XMLSelector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
@@ -43,13 +43,13 @@ object SelectedEventStream {
 
     val exclLast = selector.props.contains(options.ExcludeLast)
 
-    def filterEvents(acc: Vector[String], srcS: Stream[F, XMLEvent], extraEls: Vector[StartElement], cfg:SelectionConfig): Pull[F, XMLEvent, Unit] = {
+    def filterEvents(acc: Vector[String], srcS: Stream[F, XMLEvent], extraEls: Vector[StartElement], cfg: SelectionConfig): Pull[F, XMLEvent, Unit] = {
 
       srcS.pull.uncons1.flatMap {
         case Some((ev, tails)) =>
 
           //shortcut functions
-          def callFound(acc1: Vector[String]):Pull[F, XMLEvent, Unit] = filterEvents(acc1, tails, Vector.empty, SelectionConfig(isWithin = true))
+          def callFound(acc1: Vector[String]): Pull[F, XMLEvent, Unit] = filterEvents(acc1, tails, Vector.empty, SelectionConfig(isWithin = true))
 
           if (cfg.isWithin) { //if within searched path
             if (ev.isEndElement) {
@@ -59,7 +59,7 @@ object SelectedEventStream {
                   val newAcc = acc.dropRight(1) //removed last element from current path
                   val endEl = Some(selector.path.toVector.last) //last selector path element
                   //output last element if not excluded
-                  val tailF = if(endEl.get.onlyFirst) () => {
+                  val tailF = if (endEl.get.onlyFirst) () => {
                     println("\ndone first only within")
                     println(ev)
                     Pull.done
@@ -89,16 +89,22 @@ object SelectedEventStream {
             if (ev.isStartElement) {
               //if not matched tail is present and not ignoring events
               //events are ignored when last element of selector disallows neighbours after it
-              //flag is set afte rsuch element is closed
+              //flag is set after such element is closed
+              val asStart = ev.asStartElement()
               if (extraEls.isEmpty && !cfg.ignoreInnerEvents) {
                 //tentative path
-                val newAcc = acc :+ ev.asStartElement().getName.getLocalPart
+                val newAcc = acc :+ asStart.getName.getLocalPart
                 //if stop paths exist
-                if(selector.isInStops(newAcc)) {
+                if (selector.isInStops(newAcc)) {
                   println("done stop")
                   println(ev)
                   Pull.done
-                } else if (selector.isPrefix(newAcc)) {
+                } else if (selector.isPrefix(newAcc,
+                  if (selector.hasAttributeSels) asStart.getAttributes
+                    .asInstanceOf[java.util.Iterator[Attribute]].asScala.toSet.map((a:Attribute) => ExtractedAttr(a.getName.getLocalPart, a.getValue, None))
+                  else Set.empty
+                )
+                ) {
                   //if path is matched or partially matched
                   if (newAcc.length == selector.path.length) {
                     //if path is matched
@@ -118,10 +124,10 @@ object SelectedEventStream {
                     println(ev)
                     Pull.done
                   }
-                  else filterEvents(acc, tails, extraEls :+ ev.asStartElement(), SelectionConfig(ignoreInnerEvents = autoStop && isLastSelectorClosed)) //keep building filter stack
+                  else filterEvents(acc, tails, extraEls :+ asStart, SelectionConfig(ignoreInnerEvents = autoStop && isLastSelectorClosed)) //keep building filter stack
                 }
               } else {
-                filterEvents(acc, tails, extraEls :+ ev.asStartElement(), SelectionConfig(ignoreInnerEvents = cfg.ignoreInnerEvents))
+                filterEvents(acc, tails, extraEls :+ asStart, SelectionConfig(ignoreInnerEvents = cfg.ignoreInnerEvents))
               }
             } else if (ev.isEndElement) {
               //popping selection stack
@@ -146,7 +152,7 @@ object SelectedEventStream {
                    }*/
                   //pop and remember popped selector
                   val selLast = selector.path.toVector.drop(acc.length - 1).head
-                  if(selLast.onlyFirst) {
+                  if (selLast.onlyFirst) {
                     println("\nfirst only")
                     println(ev)
                     Pull.done

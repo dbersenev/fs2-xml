@@ -58,7 +58,7 @@ object Main extends IOApp {
       """.stripMargin
 
     val props:Set[SelOpt] = Set.empty//Set(options.StopBefore("root/wrap/elem2".selPath))
-    val selector = XMLSelector(root("REGAPI_INPUT") |\| "DATA_UNIT", props)
+    val selector = XMLSelector(root("REGAPI_INPUT") |\| "DATA_UNIT" , props)
 
     //val eFactory = XMLEventFactory.newFactory()
 
@@ -66,7 +66,7 @@ object Main extends IOApp {
       .through(EventStream[IO](global))
       .through(SelectedEventStream(selector))
       .through(ElementStream.apply)
-      .map(_ \ "DATAID")
+      .map(_ \ "SOURCEID")
       .map(_.toString).intersperse("\n").through(text.utf8Encode).through(io.stdout(global))
       .compile.drain.as(ExitCode.Success)
   }

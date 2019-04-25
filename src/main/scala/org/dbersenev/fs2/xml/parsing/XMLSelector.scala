@@ -24,14 +24,25 @@ import cats.implicits._
 import cats.data._
 
 
-case class XMLSelectorAttr(name: String, value: Option[String], ns: Option[String])
+case class XMLSelectorAttr(name: String, value: Option[String] = None, ns: Option[String] = None)
 
-case class XMLSelectorElement(entry: String, onlyFollowed: Boolean = true, ns: Option[String] = None, onlyFirst:Boolean = false) {
+case class ExtractedAttr(name: String, value: String, ns: Option[String])
+
+case class XMLSelectorElement(entry: String, onlyFollowed: Boolean = true, ns: Option[String] = None, onlyFirst:Boolean = false, attrs:Seq[XMLSelectorAttr] = Seq.empty) {
+
+  lazy val compiledAttrs:Map[String,XMLSelectorAttr] = attrs.map(a => (a.name, a)).toMap
+
   def allowingOthers: XMLSelectorElement = this.copy(onlyFollowed = false)
 
   def withNs(namespace: String): XMLSelectorElement = this.copy(ns = Some(namespace))
 
   def first: XMLSelectorElement = this.copy(onlyFirst = true)
+
+  def withAttr(name:String, value:Option[String] = None, ns:Option[String] = None): XMLSelectorElement = this.copy(attrs = this.attrs :+ XMLSelectorAttr(name, value, ns))
+
+  def attributesMatches(other:Set[ExtractedAttr]):Boolean = other.forall(extAttr => compiledAttrs.get(extAttr.name)
+    .forall(_.value.exists(_ == extAttr.value))
+  )
 }
 
 object options {
@@ -42,10 +53,10 @@ object options {
 }
 
 case class XMLSelectorPathBuilder(path: NonEmptyVector[XMLSelectorElement]) {
-  def |\|(name: String): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name)))
+  def |\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, attrs = attributes)))
   def |\|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el))
 
-  def |\\|(name: String): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, onlyFollowed = false)))
+  def |\\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, onlyFollowed = false, attrs = attributes)))
 }
 
 object XMLSelector {
@@ -67,7 +78,13 @@ case class XMLSelector(path: NonEmptyVector[XMLSelectorElement], props: Set[opti
     case options.StopBefore(p) => p.toVector.map(_.entry)
   }
 
-  def isPrefix(l: Vector[String]): Boolean = l.length <= path.length && compiledStringEls.startsWith(l)
+  lazy val hasAttributeSels:Boolean = path.exists(_.attrs.nonEmpty)
+
+  def isPrefix(l: Vector[String], lastAttrs:Set[ExtractedAttr]): Boolean =
+    (l.length <= path.length && compiledStringEls.startsWith(l)) && (lastAttrs.isEmpty || matchedSel(l).exists(_.attributesMatches(lastAttrs)))
+
+  private def matchedSel(l: Vector[String]):Option[XMLSelectorElement] = path.toVector.drop(l.size - 1).headOption
+
   def excludeLast: XMLSelector = this.copy(props = props + options.ExcludeLast)
 
   def isInStops(l:Vector[String]):Boolean = compiledStringStops.contains(l)
