@@ -48,9 +48,9 @@ object EventStream {
         Pull.done
       })
 
-    s.through(io.toInputStream).flatMap(ins =>
+    s.head.flatMap(_ => s.through(io.toInputStream).flatMap(ins =>
       Pull.acquire(cs.evalOn(ec)(evReader(ins, enc)))(r => cs.evalOn(ec)(fc.delay(r.close())))
-        .flatMap(go).stream
+        .flatMap(go).stream)
     )
   }
 
