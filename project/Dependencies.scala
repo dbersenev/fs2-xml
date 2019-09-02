@@ -8,7 +8,7 @@ object Dependencies{
 
   val scalaTags = "com.lihaoyi" %% "scalatags" % "0.6.7"
   
-  val woodstox = "com.fasterxml.woodstox" % "woodstox-core" % "5.2.0"
+  val woodstox = "com.fasterxml.woodstox" % "woodstox-core" % "5.2.1"
 }
 
 

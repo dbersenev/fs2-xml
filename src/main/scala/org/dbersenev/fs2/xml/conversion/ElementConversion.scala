@@ -41,7 +41,7 @@ object ElementConversion {
     def asRequired[T:ElementConversion]:ConversionResult[T] = as[T].andThen(v => Validated.condNec(v.isDefined, v.get, "value is empty"))
 
     def fromSeqAs[T:ElementConversion]:ConversionResult[List[T]] = ns.toList.collect{
-      case e:Elem => e
+      case e:Node => e
     }.traverse(_.as[T])
 
     def attrAs[T:ElementConversion](name:String):ConversionResult[Option[T]] = (ns \ s"@$name").as[T]
