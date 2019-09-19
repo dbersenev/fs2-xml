@@ -27,26 +27,30 @@ import scala.xml.{Elem, Node}
 object TestConversion {
 
 
-  case class SubRecord(value:String)
-  case class Record(name: String, sr:Option[SubRecord])
+  case class Record(name: String, sr:List[String])
 
-  val el = <record name="test"><sub>hello</sub></record>
+  val el = <record name="test">
+    <sub at1 ="1">hello</sub>
+    <sub at1 ="2">hello</sub>
+    <sub at1 ="3">hello</sub>
+    <sub at1 ="4">hello</sub>
+    <sub at1 ="5">hello</sub>
+  </record>
 
 
   def main(argv: Array[String]): Unit = {
 
     import conversion.ElementConversion._
 
-    implicit val toSubRec:ElementConversion[SubRecord] = _.asStringRequired.map(SubRecord)
 
     implicit val toRecord:ElementConversion[Record] = el => (
       el attrAsRequired[String]  "name",
-      (el \ "sub").as[SubRecord]
+      (el \ "sub" \ "@at1").fromSeqAs[String]
     ).mapN(Record)
 
     val r:ConversionResult[Record] = el.as[Record]
 
-    println(r)
+    println(el \ "sub" \\ "@at1")
 
   }
 

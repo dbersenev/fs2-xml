@@ -18,6 +18,7 @@ package org.dbersenev.fs2.xml
 
 import java.io.StringReader
 import java.nio.file.Paths
+import java.util.concurrent.Executors
 
 import cats._
 import cats.implicits._
@@ -30,6 +31,8 @@ import org.dbersenev.fs2.xml.parsing.options.SelOpt
 
 import scala.xml._
 import parsing._
+
+import scala.concurrent.ExecutionContext
 
 
 object Main extends IOApp {
@@ -62,13 +65,22 @@ object Main extends IOApp {
 
     //val eFactory = XMLEventFactory.newFactory()
 
-    io.file.readAll[IO](Paths.get("xml/0000-0001-8880-7084_ORSInput.xml"), global, 1024)
-      .through(EventStream[IO](global))
-      .through(SelectedEventStream(selector))
-      .through(ElementStream.apply)
-      .map(_ \ "SOURCEID")
-      .map(_.toString).intersperse("\n").through(text.utf8Encode).through(io.stdout(global))
-      .compile.drain.as(ExitCode.Success)
+    val cs = IO.contextShift(global)
+
+    def readFile(bc:ExecutionContext):IO[Unit] =
+      io.file.readAll[IO](Paths.get("xml/0000-0001-8880-7084_ORSInput.xml"), bc, 1024)
+        .through(EventStream[IO](global))
+        .through(SelectedEventStream(selector))
+        .through(ElementStream.apply)
+        .map(_ \ "SOURCEID")
+        .map(_.toString).intersperse("\n").through(text.utf8Encode).through(io.stdout(global))
+        .compile.drain
+
+    Resource.make(IO.delay(Executors.newFixedThreadPool(1)))(e => IO.delay(e.shutdownNow()))
+        .flatMap(e => Resource.liftF(IO.delay(ExecutionContext.fromExecutor(e)))).use(bc =>
+      cs.evalOn(bc)(IO(Thread.sleep(5000))).start >>
+      List(readFile(bc), readFile(bc), readFile(bc), readFile(bc), readFile(bc), readFile(bc)).parSequence.as(Unit)
+    ).as(ExitCode.Success)
   }
 
 }
