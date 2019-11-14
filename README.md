@@ -1,15 +1,15 @@
 # fs2-xml
-Scala FS2 XML extensions
+**Scala FS2 XML extensions**
 
 Provides streaming parsing for XML using FS2.
 
 There are several components
 
-EventStream
+**EventStream**
 
 Simply produces stream of XML events from some Stream\[?, Byte\].
 
-SelectedEventStream
+**SelectedEventStream**
 
 Filters XML event streams. Selects portions of that.
 May stop producing events based on some selector.
@@ -50,7 +50,19 @@ produces 2 "item" events: from unit(@seq=1) and from unit(@seq=2)
 root("root") |\| ("unit", XMLSelectorAttr("seq", "1".some))
 produces events from unit(@seq=1)
 ```
+Options can be used to tune behavior.
+ExcludeLastSelectorElement - removes last selector element from the events output.
+StopBeforeSelector - stops further processing of elements at soem selector.
 
+
+**ElementStream**
+
+Folds event stream to stream of elements.
+
+**ElementConversion**
+
+Allows one to convert element into some model.
+Implemented as extensions on Nodes and simple ElementConversion typeclass.
 
 
 
