@@ -7,7 +7,7 @@ There are several components
 
 EventStream
 
-Simply produces stream of XML events from some Stream[?, Byte].
+Simply produces stream of XML events from some Stream\[?, Byte\].
 
 SelectedEventStream
 
@@ -16,26 +16,27 @@ May stop producing events based on some selector.
 Main idea here is selector.
 Examples:
 
-<root>
-<unit seq = "1">
-<items>
-<item a="x">
+\<root>
+\<unit seq = "1">
+\<items>
+\<item a="x">
 value 1
-</item>
-<item a="y">
+\</item>
+\<item a="y">
 value 2
-</item>
-</items>
-</unit>
-<unit seq = "2">
-<items>
-<item a = "z">
+\</item>
+\</items>
+\</unit>
+\<unit seq = "2">
+\<items>
+\<item a = "z">
 value 3
-</item>
-</items>
-</unit>
+\</item>
+\</items>
+\</unit>
+```
 
-root("root") |\!| "unit" |\| "items" |\| "item"
+`root("root") |\!| "unit" |\| "items" |\| "item"
 produces all "item" events from unit(@seq=1)
 
 root("root") |\| "unit" |\| "items" |\| "item"
@@ -46,6 +47,7 @@ produces 2 "item" events: from unit(@seq=1) and from unit(@seq=2)
 
 root("root") |\| ("unit", XMLSelectorAttr("seq", "1".some))
 produces events from unit(@seq=1)
+`
 
 
 
