@@ -28,15 +28,18 @@ case class XMLSelectorAttr(name: String, value: Option[String] = None, ns: Optio
 
 case class ExtractedAttr(name: String, value: String, ns: Option[String])
 
-case class XMLSelectorElement(entry: String, onlyFollowed: Boolean = true, ns: Option[String] = None, onlyFirst:Boolean = false, attrs:Seq[XMLSelectorAttr] = Seq.empty) {
+case class XMLSelectorElement(
+                               entry: String,
+                               stopOnAdjacent: Boolean = true, //do not process adjacent elements
+                               ns: Option[String] = None,
+                               attrs:Seq[XMLSelectorAttr] = Seq.empty
+                             ) {
 
   lazy val compiledAttrs:Map[String,XMLSelectorAttr] = attrs.map(a => (a.name, a)).toMap
 
-  def allowingOthers: XMLSelectorElement = this.copy(onlyFollowed = false)
+  def allowingAdjacent: XMLSelectorElement = this.copy(stopOnAdjacent = false)
 
   def withNs(namespace: String): XMLSelectorElement = this.copy(ns = Some(namespace))
-
-  def first: XMLSelectorElement = this.copy(onlyFirst = true)
 
   def withAttr(name:String, value:Option[String] = None, ns:Option[String] = None): XMLSelectorElement = this.copy(attrs = this.attrs :+ XMLSelectorAttr(name, value, ns))
 
@@ -47,16 +50,17 @@ case class XMLSelectorElement(entry: String, onlyFollowed: Boolean = true, ns: O
 
 object options {
   sealed trait SelOpt
-  case object ExcludeLast extends SelOpt
-  case class Close(path: NonEmptyVector[XMLSelectorElement]) extends SelOpt
-  case class StopBefore(path: NonEmptyVector[XMLSelectorElement]) extends SelOpt
+  case object ExcludeLastSelectorElement extends SelOpt //exclude last element from the selector path
+  case class CloseElementWith(path: NonEmptyVector[XMLSelectorElement]) extends SelOpt
+  case class StopBeforeSelector(path: NonEmptyVector[XMLSelectorElement]) extends SelOpt //stop before provided selector match
 }
 
 case class XMLSelectorPathBuilder(path: NonEmptyVector[XMLSelectorElement]) {
-  def |\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, attrs = attributes)))
-  def |\|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el))
+  def |\!|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, attrs = attributes)))
+  def |\!|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el))
 
-  def |\\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, onlyFollowed = false, attrs = attributes)))
+  def |\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, stopOnAdjacent = false, attrs = attributes)))
+  def |\|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el.allowingAdjacent))
 }
 
 object XMLSelector {
@@ -68,14 +72,18 @@ object XMLSelector {
 
   implicit def xmlPathBuilderToVect(bld: XMLSelectorPathBuilder): NonEmptyVector[XMLSelectorElement] = bld.path
 
-  def root(name: String): XMLSelectorPathBuilder = XMLSelectorPathBuilder(NonEmptyVector.one(XMLSelectorElement(name)))
+  def root(name: String, stopAdj:Boolean = true): XMLSelectorPathBuilder = XMLSelectorPathBuilder(NonEmptyVector.one(XMLSelectorElement(name, stopOnAdjacent = stopAdj)))
 
 }
 
-case class XMLSelector(path: NonEmptyVector[XMLSelectorElement], props: Set[options.SelOpt] = Set.empty, ns: Option[String] = None) {
+case class XMLSelector(
+                        path: NonEmptyVector[XMLSelectorElement],
+                        props: Set[options.SelOpt] = Set.empty,
+                        ns: Option[String] = None
+                      ) {
   val compiledStringEls: Vector[String] = path.map(_.entry).toVector
   val compiledStringStops:Set[Vector[String]] = props.collect{
-    case options.StopBefore(p) => p.toVector.map(_.entry)
+    case options.StopBeforeSelector(p) => p.toVector.map(_.entry)
   }
 
   lazy val hasAttributeSels:Boolean = path.exists(_.attrs.nonEmpty)
@@ -85,7 +93,7 @@ case class XMLSelector(path: NonEmptyVector[XMLSelectorElement], props: Set[opti
 
   private def matchedSel(l: Vector[String]):Option[XMLSelectorElement] = path.toVector.drop(l.size - 1).headOption
 
-  def excludeLast: XMLSelector = this.copy(props = props + options.ExcludeLast)
+  def excludeLast: XMLSelector = this.copy(props = props + options.ExcludeLastSelectorElement)
 
   def isInStops(l:Vector[String]):Boolean = compiledStringStops.contains(l)
 

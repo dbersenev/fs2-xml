@@ -30,7 +30,7 @@ object SelectedEventStream {
   import XMLSelector._
 
   private case class SelectionConfig(
-                                      isWithin: Boolean = false,
+                                      isMatched: Boolean = false,
                                       lastMainPop: Option[XMLSelectorElement] = None,
                                       ignoreInnerEvents: Boolean = false
                                     )
@@ -41,7 +41,10 @@ object SelectedEventStream {
   def apply[F[_] : RaiseThrowable](selector: XMLSelector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
     //simple path with full inclusion
 
-    val exclLast = selector.props.contains(options.ExcludeLast)
+    val exclLast = selector.props.contains(options.ExcludeLastSelectorElement)
+
+    val onlyFirst = !selector.path.exists(v => !v.stopOnAdjacent)
+
 
     def filterEvents(acc: Vector[String], srcS: Stream[F, XMLEvent], extraEls: Vector[StartElement], cfg: SelectionConfig): Pull[F, XMLEvent, Unit] = {
 
@@ -49,9 +52,9 @@ object SelectedEventStream {
         case Some((ev, tails)) =>
 
           //shortcut functions
-          def callFound(acc1: Vector[String]): Pull[F, XMLEvent, Unit] = filterEvents(acc1, tails, Vector.empty, SelectionConfig(isWithin = true))
+          def callFound(acc1: Vector[String]): Pull[F, XMLEvent, Unit] = filterEvents(acc1, tails, Vector.empty, SelectionConfig(isMatched = true))
 
-          if (cfg.isWithin) { //if within searched path
+          if (cfg.isMatched) { //if within searched path
             if (ev.isEndElement) {
               if (extraEls.isEmpty) { //element is closing but nothing yet processed within
                 //check if selected path is closing
@@ -59,11 +62,8 @@ object SelectedEventStream {
                   val newAcc = acc.dropRight(1) //removed last element from current path
                   val endEl = Some(selector.path.toVector.last) //last selector path element
                   //output last element if not excluded
-                  val tailF = if (endEl.get.onlyFirst) () => {
-                    println("\ndone first only within")
-                    println(ev)
-                    Pull.done
-                  } else () => filterEvents(newAcc, tails, Vector.empty, SelectionConfig(lastMainPop = endEl))
+                  val tailF = if (onlyFirst) () => Pull.done
+                  else () => filterEvents(newAcc, tails, Vector.empty, SelectionConfig(lastMainPop = endEl))
                   if (!exclLast) Pull.output1(ev) >> tailF()
                   else tailF()
                 } else {
@@ -73,7 +73,7 @@ object SelectedEventStream {
                 //if within stack not empty
                 if (extraEls.lastOption.exists(el => el.getName.equals(ev.asEndElement().getName))) {
                   //just output and pop
-                  Pull.output1(ev) >> filterEvents(acc, tails, extraEls.dropRight(1), SelectionConfig(cfg.isWithin))
+                  Pull.output1(ev) >> filterEvents(acc, tails, extraEls.dropRight(1), SelectionConfig(cfg.isMatched))
                 } else {
                   Pull.raiseError(new ParsingException)
                 }
@@ -82,7 +82,7 @@ object SelectedEventStream {
               //if not end element
               //stack is appended in case of start element
               val newWithin = if (ev.isStartElement) extraEls :+ ev.asStartElement() else extraEls
-              Pull.output1(ev) >> filterEvents(acc, tails, newWithin, SelectionConfig(isWithin = cfg.isWithin))
+              Pull.output1(ev) >> filterEvents(acc, tails, newWithin, SelectionConfig(isMatched = cfg.isMatched))
             }
           } else {
             //selection part
@@ -94,40 +94,34 @@ object SelectedEventStream {
               if (extraEls.isEmpty && !cfg.ignoreInnerEvents) {
                 //tentative path
                 val newAcc = acc :+ asStart.getName.getLocalPart
-                //if stop paths exist
+
                 if (selector.isInStops(newAcc)) {
-                  println("done stop")
-                  println(ev)
                   Pull.done
-                } else if (selector.isPrefix(newAcc,
-                  if (selector.hasAttributeSels) asStart.getAttributes
-                    .asInstanceOf[java.util.Iterator[Attribute]].asScala.toSet.map((a:Attribute) => ExtractedAttr(a.getName.getLocalPart, a.getValue, None))
-                  else Set.empty
-                )
+                } else if (
+                  selector.isPrefix(newAcc,
+                    if (selector.hasAttributeSels) asStart.getAttributes
+                      .asInstanceOf[java.util.Iterator[Attribute]].asScala.toSet.map((a: Attribute) => ExtractedAttr(a.getName.getLocalPart, a.getValue, None))
+                    else Set.empty
+                  )
                 ) {
-                  //if path is matched or partially matched
-                  if (newAcc.length == selector.path.length) {
-                    //if path is matched
-                    //in case of last element exclusion do not produce it in the output
-                    if (!exclLast) Pull.output1(ev) >> callFound(newAcc) else callFound(newAcc)
+                  if(cfg.lastMainPop.exists(v => selector.path.toVector.drop(newAcc.length - 1).headOption.exists(v2 => v2 == v && v.stopOnAdjacent))){
+                    filterEvents(acc, tails, Vector(asStart), cfg.copy(ignoreInnerEvents = true))
                   } else {
-                    filterEvents(newAcc, tails, extraEls, SelectionConfig())
+                    //if path is matched or partially matched
+                    if (newAcc.length == selector.path.length) {
+                      //if path is matched
+                      //in case of last element exclusion do not produce it in the output
+                      if (!exclLast) Pull.output1(ev) >> callFound(newAcc) else callFound(newAcc)
+                    } else {
+                      filterEvents(newAcc, tails, Vector.empty, SelectionConfig())
+                    }
                   }
                 } else {
-                  //if nothing is matches or events are ignored
-                  val isLastSelectorClosed = cfg.lastMainPop.contains(selector.path.last) //if previously last selector element was closed
-                  val autoStop = cfg.lastMainPop.exists(lel => lel.onlyFollowed) //if previously popped element (from acc) disallow following neighbours
+                  filterEvents(acc, tails, extraEls :+ asStart, cfg.copy(ignoreInnerEvents = true))
+                } //keep building filter stack
 
-                  //finish if following not in last element
-                  if (autoStop && !isLastSelectorClosed) {
-                    println("\ndone1")
-                    println(ev)
-                    Pull.done
-                  }
-                  else filterEvents(acc, tails, extraEls :+ asStart, SelectionConfig(ignoreInnerEvents = autoStop && isLastSelectorClosed)) //keep building filter stack
-                }
               } else {
-                filterEvents(acc, tails, extraEls :+ asStart, SelectionConfig(ignoreInnerEvents = cfg.ignoreInnerEvents))
+                filterEvents(acc, tails, extraEls :+ asStart, cfg)
               }
             } else if (ev.isEndElement) {
               //popping selection stack
@@ -138,23 +132,18 @@ object SelectedEventStream {
               if (extraEls.nonEmpty) {
                 //correctly popping not matched elements
                 if (extraEls.last.getName == endEl.getName) {
-                  filterEvents(acc, tails, extraEls.dropRight(1), SelectionConfig(ignoreInnerEvents = cfg.ignoreInnerEvents))
+                  val tmpExtra = extraEls.dropRight(1)
+                  filterEvents(acc, tails, tmpExtra, cfg.copy(ignoreInnerEvents = tmpExtra.nonEmpty))
                 } else {
                   Pull.raiseError(new ParsingException)
                 }
               } else {
                 //if popping from matched path
                 if (acc.lastOption.exists(el => el === endEl.getName.getLocalPart)) {
-                  /* if(lastMainPop.exists(_.autoStop)) {
-                     println("\ndone2")
-                     println(ev)
-                     Pull.done
-                   }*/
                   //pop and remember popped selector
-                  val selLast = selector.path.toVector.drop(acc.length - 1).head
-                  if (selLast.onlyFirst) {
-                    println("\nfirst only")
-                    println(ev)
+                  val (v1, v2) = selector.path.toVector.splitAt(acc.length - 1)
+                  val selLast = v2.head
+                  if (onlyFirst || (selLast.stopOnAdjacent && v1.forall(el => el.stopOnAdjacent))) {
                     Pull.done
                   }
                   else filterEvents(acc.dropRight(1), tails, Vector.empty, SelectionConfig(lastMainPop = Some(selLast)))
