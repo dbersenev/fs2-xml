@@ -37,24 +37,28 @@ object EventStream {
 
   class ParsingException extends Throwable
 
-  private def evReader[F[_] : Sync](ins: InputStream, enc: Option[Codec]): F[XMLEventReader] =
+  private def evReader[F[_] : Sync](ins: InputStream, enc: Option[Codec]): F[XMLEventReader] = {
     enc.map(e => Sync[F].delay(inf.createXMLEventReader(ins, e.name))).getOrElse(Sync[F].delay(inf.createXMLEventReader(ins)))
+  }
 
-  def apply[F[_]](ec: ExecutionContext, enc: Option[Codec] = None)(s: Stream[F, Byte])(implicit fc: ConcurrentEffect[F], cs: ContextShift[F]): Stream[F, XMLEvent] = {
+  def apply[F[_] : ContextShift : ConcurrentEffect](blocker: Blocker, enc: Option[Codec] = None)(s: Stream[F, Byte]): Stream[F, XMLEvent] = {
     def go(er: XMLEventReader): Pull[F, XMLEvent, Unit] =
-      Pull.eval(cs.evalOn(ec)(fc.delay {
-        val hasN = er.hasNext
-        if (hasN) {
-          Some(er.nextEvent())
-        } else {
-          None
+      Pull.eval(
+        blocker.delay {
+          val hasN = er.hasNext
+          if (hasN) {
+            Some(er.nextEvent())
+          } else {
+            None
+          }
         }
-      })).flatMap(evO => evO.map(ev => Pull.output1(ev) >> go(er)).getOrElse(Pull.done)
+      ).flatMap(evO => evO.map(ev => Pull.output1(ev) >> go(er)).getOrElse(Pull.done)
       )
 
-    s.head.flatMap(_ => s.through(io.toInputStream).flatMap(ins =>
-      Pull.acquire(cs.evalOn(ec)(evReader(ins, enc)))(r => cs.evalOn(ec)(fc.delay(r.close())))
-        .flatMap(go).stream)
+    s.through(io.toInputStream).flatMap(ins =>
+          Stream.bracket(blocker.blockOn(evReader(ins, enc)))(r =>
+            blocker.delay(r.close())
+          ).flatMap(r => go(r).stream)
     )
   }
 

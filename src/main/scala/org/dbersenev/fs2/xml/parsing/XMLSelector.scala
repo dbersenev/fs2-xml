@@ -43,6 +43,9 @@ case class XMLSelectorElement(
 
   def withAttr(name:String, value:Option[String] = None, ns:Option[String] = None): XMLSelectorElement = this.copy(attrs = this.attrs :+ XMLSelectorAttr(name, value, ns))
 
+  def withIntAttr(name:String, value:Int, ns:Option[String] = None):XMLSelectorElement =
+    withAttr(name, value.toString.some, ns)
+
   def attributesMatches(other:Set[ExtractedAttr]):Boolean = other.forall(extAttr => compiledAttrs.get(extAttr.name)
     .forall(_.value.exists(_ == extAttr.value))
   )
@@ -56,10 +59,10 @@ object options {
 }
 
 case class XMLSelectorPathBuilder(path: NonEmptyVector[XMLSelectorElement]) {
-  def |\!|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, attrs = attributes)))
+  def |\!|(name: String): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name)))
   def |\!|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el))
 
-  def |\|(name: String, attributes:Seq[XMLSelectorAttr] = Seq.empty): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, stopOnAdjacent = false, attrs = attributes)))
+  def |\|(name: String): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(XMLSelectorElement(name, stopOnAdjacent = false)))
   def |\|(el: XMLSelectorElement): XMLSelectorPathBuilder = XMLSelectorPathBuilder(path.append(el.allowingAdjacent))
 }
 
@@ -67,12 +70,22 @@ object XMLSelector {
 
   implicit class AnyStrToXmlSelEl(val s: String) extends AnyVal {
     def sel: XMLSelectorElement = XMLSelectorElement(s)
-    def selPath:NonEmptyVector[XMLSelectorElement] = NonEmptyVector.fromVector(s.split("/").map(_.trim).filter(_.nonEmpty).map(XMLSelectorElement(_)).toVector).get
+    def selPath:NonEmptyVector[XMLSelectorElement] = NonEmptyVector.fromVector(s.split("/").map(_.trim).filter(_.nonEmpty).map(XMLSelectorElement(_, stopOnAdjacent = false)).toVector).get
+    def selBuilder:XMLSelectorPathBuilder = XMLSelectorPathBuilder(s.selPath)
+    def selector:XMLSelector = XMLSelector(s.selBuilder)
   }
 
+
+  implicit def anyStrToSelectorElement(s:String):XMLSelectorElement = s.sel
+
+  implicit def selPathToXmlPathBuilder(path:NonEmptyVector[XMLSelectorElement]):XMLSelectorPathBuilder = XMLSelectorPathBuilder(path)
+
   implicit def xmlPathBuilderToVect(bld: XMLSelectorPathBuilder): NonEmptyVector[XMLSelectorElement] = bld.path
+  implicit def xmlPathBuilderToSelector(bld: XMLSelectorPathBuilder): XMLSelector = XMLSelector(bld.path)
 
   def root(name: String, stopAdj:Boolean = true): XMLSelectorPathBuilder = XMLSelectorPathBuilder(NonEmptyVector.one(XMLSelectorElement(name, stopOnAdjacent = stopAdj)))
+
+  implicit def anyStrToXmlPathBuilder(s:String):XMLSelectorPathBuilder = root(s)
 
 }
 
