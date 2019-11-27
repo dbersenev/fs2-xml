@@ -41,6 +41,18 @@ object EventStream {
     enc.map(e => Sync[F].delay(inf.createXMLEventReader(ins, e.name))).getOrElse(Sync[F].delay(inf.createXMLEventReader(ins)))
   }
 
+  /**
+    * Produces XML events from stream of bytes
+    * Because function uses "InputStream" to integrate with XMLEventReader
+    * one should select dedicated Blocker independent from the one used to get stream of bytes.
+    * Otherwise "InputStream" will block
+    *
+    * @param blocker
+    * @param enc
+    * @param s
+    * @tparam F
+    * @return
+    */
   def apply[F[_] : ContextShift : ConcurrentEffect](blocker: Blocker, enc: Option[Codec] = None)(s: Stream[F, Byte]): Stream[F, XMLEvent] = {
     def go(er: XMLEventReader): Pull[F, XMLEvent, Unit] =
       Pull.eval(

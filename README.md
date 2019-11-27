@@ -2,6 +2,7 @@
 **Scala FS2 XML extensions**
 
 Provides streaming parsing for XML using FS2.
+Library is really in pre alpha stage
 
 There are several components
 
@@ -11,8 +12,11 @@ Simply produces stream of XML events from some Stream\[?, Byte\].
 
 **SelectedEventStream**
 
-Filters XML event streams. Selects portions of that.
+Filters XML event streams. Selects portions of the one.
 May stop producing events based on some selector.
+You should consume it on separate Blocker from anything
+because internally stream of bytes is converted to the "InputStream"
+
 Main idea here is selector.
 Examples:
 
@@ -47,12 +51,12 @@ produces all "item" events from all "unit"
 root("root") |\| "unit" |\| "items" |\!| "item"
 produces 2 "item" events: from unit(@seq=1) and from unit(@seq=2)
 
-root("root") |\| ("unit", XMLSelectorAttr("seq", "1".some))
+root("root") |\| ("unit", XMLSelectorAttr("seq", "1".some).app)
 produces events from unit(@seq=1)
 ```
-Options can be used to tune behavior.
+Options can be used for behavior tuning.
 ExcludeLastSelectorElement - removes last selector element from the events output.
-StopBeforeSelector - stops further processing of elements at soem selector.
+StopBeforeSelector - stops further processing of elements at some selector.
 
 
 **ElementStream**

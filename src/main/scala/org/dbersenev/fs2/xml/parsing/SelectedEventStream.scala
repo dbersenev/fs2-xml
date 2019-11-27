@@ -36,7 +36,7 @@ object SelectedEventStream {
                                     )
 
   def apply[F[_] : RaiseThrowable](selector: String)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] =
-    apply(XMLSelector(selector.selPath))(stream)
+    apply(selector.toSelector)(stream)
 
   def apply[F[_] : RaiseThrowable](selector: XMLSelector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
     //simple path with full inclusion
