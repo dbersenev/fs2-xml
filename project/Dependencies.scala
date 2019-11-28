@@ -9,6 +9,8 @@ object Dependencies{
   val scalaTags = "com.lihaoyi" %% "scalatags" % "0.6.7"
   
   val woodstox = "com.fasterxml.woodstox" % "woodstox-core" % "5.2.1"
+
+  val testDeps = List("org.scalatest" %% "scalatest" % "3.0.8" % "test")
 }
 
 

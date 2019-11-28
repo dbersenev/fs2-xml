@@ -13,6 +13,7 @@ lazy val root = (project in file(".")).settings(
   libraryDependencies ++= Seq(
     fs2Core, fs2Io, scalaXml, woodstox
   ),
+  libraryDependencies ++= testDeps,
   scalacOptions += "-Ypartial-unification",
   mainClass in Compile := Some("org.dbersenev.fs2.xml.OrcidTest"),
   executableScriptName := "run",

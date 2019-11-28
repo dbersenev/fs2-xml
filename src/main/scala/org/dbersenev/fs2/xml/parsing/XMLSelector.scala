@@ -18,15 +18,14 @@ package org.dbersenev.fs2.xml.parsing
 
 
 import scala.language.implicitConversions
-
 import cats._
 import cats.implicits._
 import cats.data._
+import org.dbersenev.fs2.xml.events.XMLAttribute
 
 
-case class XMLSelectorAttr(name: String, value: Option[String] = None, ns: Option[String] = None)
 object XMLSelectorIntAttr {
-  def apply(name:String, value:Int, ns:Option[String] = None):XMLSelectorAttr = XMLSelectorAttr(name, value.toString.some, ns)
+  def apply(name:String, value:Int, ns:Option[String] = None):XMLAttribute = XMLAttribute(name, value.toString.some, ns)
 }
 
 case class ExtractedAttr(name: String, value: String, ns: Option[String])
@@ -35,16 +34,16 @@ case class XMLSelectorElement(
                                entry: String,
                                stopOnAdjacent: Boolean = true, //do not process adjacent elements
                                ns: Option[String] = None,
-                               attrs: List[XMLSelectorAttr] = List.empty
+                               attrs: List[XMLAttribute] = List.empty
                              ) {
 
-  lazy val compiledAttrs: Map[String, XMLSelectorAttr] = attrs.map(a => (a.name, a)).toMap
+  lazy val compiledAttrs: Map[String, XMLAttribute] = attrs.map(a => (a.name, a)).toMap
 
   def allowingAdjacent: XMLSelectorElement = this.copy(stopOnAdjacent = false)
 
   def withNs(namespace: String): XMLSelectorElement = this.copy(ns = Some(namespace))
 
-  def withAttr(a:XMLSelectorAttr): XMLSelectorElement = this.copy(attrs = a :: attrs)
+  def withAttr(a:XMLAttribute): XMLSelectorElement = this.copy(attrs = a :: attrs)
 
   def attributesMatches(other: Set[ExtractedAttr]): Boolean = other.forall(extAttr => compiledAttrs.get(extAttr.name)
     .forall(_.value.exists(_ == extAttr.value))
@@ -105,8 +104,8 @@ object XMLSelector {
     def toSelector: XMLSelector = XMLSelector(s.toSelBuilder.path)
   }
 
-  implicit class XmlSelectorAttributeExt(val a:XMLSelectorAttr) extends AnyVal {
-    def withIntValue(v:Int):XMLSelectorAttr = a.copy(value = v.toString.some)
+  implicit class XmlSelectorAttributeExt(val a:XMLAttribute) extends AnyVal {
+    def withIntValue(v:Int):XMLAttribute = a.copy(value = v.toString.some)
     def app:XMLSelectorElement => XMLSelectorElement = _.withAttr(a)
   }
 
