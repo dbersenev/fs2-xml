@@ -2,7 +2,6 @@
 **Scala FS2 XML extensions**
 
 Provides streaming parsing for XML using FS2.
-Library is really in pre alpha stage
 
 There are several components
 
