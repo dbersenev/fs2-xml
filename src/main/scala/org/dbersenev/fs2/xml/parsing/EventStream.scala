@@ -67,10 +67,12 @@ object EventStream {
       ).flatMap(evO => evO.map(ev => Pull.output1(ev) >> go(er)).getOrElse(Pull.done)
       )
 
-    s.through(io.toInputStream).flatMap(ins =>
-          Stream.bracket(blocker.blockOn(evReader(ins, enc)))(r =>
-            blocker.delay(r.close())
-          ).flatMap(r => go(r).stream)
+    s.head.flatMap(_ =>
+      s.through(io.toInputStream).flatMap(ins =>
+        Stream.bracket(blocker.blockOn(evReader(ins, enc)))(r =>
+          blocker.delay(r.close())
+        ).flatMap(r => go(r).stream)
+      )
     )
   }
 

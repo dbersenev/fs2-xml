@@ -21,7 +21,6 @@ import scala.language.higherKinds
 import cats._
 import cats.implicits._
 import fs2._
-import javax.xml.stream.events.{StartElement, XMLEvent}
 
 import javax.xml.stream.events.{StartElement, XMLEvent, Attribute => JAttr}
 import scala.xml._

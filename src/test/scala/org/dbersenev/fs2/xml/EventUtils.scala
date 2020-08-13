@@ -14,16 +14,19 @@
  * limitations under the License.
  */
 
-package org.dbersenev.fs2.xml.events
+package org.dbersenev.fs2.xml
 
+import cats.implicits.catsSyntaxOptionId
 import javax.xml.stream.XMLEventFactory
-import javax.xml.stream.events.{Characters, EndElement, StartElement}
+import javax.xml.stream.events.{Characters, EndElement}
 
 object EventUtils {
 
   private val evFact = XMLEventFactory.newFactory()
 
-  def startElementEvent(name:String):StartElement = evFact.createStartElement("", "", name)
-  def charactersEvent(value:String):Characters = evFact.createCharacters(value)
-  def endElementEvent(name:String):EndElement = evFact.createEndElement("", "", name)
+  type TestEvent = (Option[String], String, Option[String])
+
+  def startElementEvent(name:String):TestEvent = (name.some, "start", None)
+  def charactersEvent(value:String):TestEvent = (None, "characters", value.some)
+  def endElementEvent(name:String):TestEvent = (name.some, "end", None)
 }

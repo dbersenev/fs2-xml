@@ -17,15 +17,19 @@
 package org.dbersenev.fs2.xml
 
 import cats.effect._
-import javax.xml.stream.events.XMLEvent
-import org.dbersenev.fs2.xml.events.EventUtils._
+import cats.implicits.catsSyntaxOptionId
+import javax.xml.stream.events.{Characters, EndElement, StartElement, XMLEvent}
+import EventUtils._
 import org.dbersenev.fs2.xml.parsing.SelectedEventStream
-import org.scalatest.{FunSuite, Matchers}
-import org.dbersenev.fs2.xml.parsing.XMLSelector._
+import org.dbersenev.fs2.xml.parsing.selector.SelectorPath.root
+import org.dbersenev.fs2.xml.parsing.selector._
+import org.dbersenev.fs2.xml.parsing.selector.SelectorPath._
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
-class EventSelectorTest extends FunSuite with Matchers {
+class EventSelectorTest extends AnyFunSuite with Matchers {
 
-  val rootSelector = root("root").selector
+  val rootSelector = Selector("root")
   val SingleElement = "<root></root>"
   def rootSelectorSelection(txt:String):IO[List[XMLEvent]] =
     StreamFunctions.eventStream(txt)
@@ -35,7 +39,7 @@ class EventSelectorTest extends FunSuite with Matchers {
 
     val seq = rootSelectorSelection(SingleElement).unsafeRunSync()
 
-    seq should contain inOrder (startElementEvent("root"), endElementEvent("root"))
+    seq.map(eventToExpl) should contain inOrder (startElementEvent("root"), endElementEvent("root"))
   }
 
   val SingleElementText = "<root>text</root>"
@@ -44,25 +48,29 @@ class EventSelectorTest extends FunSuite with Matchers {
 
     val seq = rootSelectorSelection(SingleElementText).unsafeRunSync()
 
-    seq should contain inOrder (startElementEvent("root"), charactersEvent("text"), endElementEvent("root"))
+    seq.map(eventToExpl) should contain inOrder (startElementEvent("root"), charactersEvent("text"), endElementEvent("root"))
   }
 
   val TwoElementText = "<root><item>text</item></root>"
 
   test("Two element inner element selection") {
     val seq = StreamFunctions.eventStream(TwoElementText)
-      .through(SelectedEventStream(root("root") |\!| "item" selector)).compile.toList.unsafeRunSync()
+      .through(
+        SelectedEventStream(root("root") |\!| "item")
+      ).compile.toList.unsafeRunSync()
 
-    seq should contain inOrder(startElementEvent("item"), charactersEvent("text"), endElementEvent("item"))
+    seq.map(eventToExpl) should contain inOrder(startElementEvent("item"), charactersEvent("text"), endElementEvent("item"))
   }
 
   val TwoSameElementsText = "<root><item>text1</item><item>text2</item></root>"
 
   test("Two same elements inner elements selection") {
     val seq = StreamFunctions.eventStream(TwoSameElementsText)
-      .through(SelectedEventStream(root("root") |\| "item" selector)).compile.toList.unsafeRunSync()
+      .through(
+        SelectedEventStream((root("root") |\| "item"))
+      ).compile.toList.unsafeRunSync()
 
-    seq should contain theSameElementsInOrderAs  List(
+    seq.map(eventToExpl) should contain theSameElementsInOrderAs  List(
       startElementEvent("item"), charactersEvent("text1"), endElementEvent("item"),
       startElementEvent("item"), charactersEvent("text2"), endElementEvent("item")
     )
@@ -70,11 +78,19 @@ class EventSelectorTest extends FunSuite with Matchers {
 
   test("Two same elements inner single element selection") {
     val seq = StreamFunctions.eventStream(TwoSameElementsText)
-      .through(SelectedEventStream(root("root") |\!| "item" selector)).compile.toList.unsafeRunSync()
+      .through(
+        SelectedEventStream(root("root") |\!| "item")
+      ).compile.toList.unsafeRunSync()
 
-    seq should contain theSameElementsInOrderAs  List(
+    seq.map(eventToExpl) should contain theSameElementsInOrderAs  List(
       startElementEvent("item"), charactersEvent("text1"), endElementEvent("item")
     )
+  }
+
+  private def eventToExpl(ev:XMLEvent):TestEvent = ev match {
+    case se:StartElement => (se.getName.getLocalPart.some, "start", None)
+    case ch:Characters =>   (None, "characters", ch.getData.some)
+    case ee:EndElement =>   (ee.getName.getLocalPart.some, "end", None)
   }
 
 }

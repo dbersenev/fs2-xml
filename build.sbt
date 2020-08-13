@@ -1,21 +1,15 @@
 import Dependencies._
 
-val commons = Seq(
-  scalaVersion := "2.12.8"
-)
+ThisBuild / scalaVersion := "2.13.3"
+ThisBuild / organization := "org.dbersenev"
+ThisBuild / version := "0.2.0"
 
 lazy val root = (project in file(".")).settings(
-  commons,
   name := "fs2-xml",
-  organization := "org.dbersenev",
-  version := "0.1.8",
   isSnapshot := true,
   libraryDependencies ++= Seq(
-    fs2Core, fs2Io, scalaXml, woodstox
+    fs2Core, fs2Io, scalaXml
   ),
   libraryDependencies ++= testDeps,
-  scalacOptions += "-Ypartial-unification",
-  mainClass in Compile := Some("org.dbersenev.fs2.xml.OrcidTest"),
-  executableScriptName := "run",
   Compile / discoveredMainClasses := List.empty
-).enablePlugins(JavaAppPackaging)
+)

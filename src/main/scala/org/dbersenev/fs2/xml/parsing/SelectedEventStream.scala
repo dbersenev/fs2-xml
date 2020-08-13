@@ -22,26 +22,29 @@ import cats.implicits._
 import fs2._
 import cats.effect._
 import javax.xml.stream.events.{Attribute, StartElement, XMLEvent}
-import scala.collection.JavaConverters._
+import org.dbersenev.fs2.xml.parsing.selector.SelectorPath.StringToPathExt
+import org.dbersenev.fs2.xml.parsing.selector.{ExcludeLastSelectorElement, Selector, SelectorElement}
+
+import scala.jdk.CollectionConverters._
 
 object SelectedEventStream {
 
   import EventStream._
-  import XMLSelector._
+  import Selector._
 
   private case class SelectionConfig(
                                       isMatched: Boolean = false,
-                                      lastMainPop: Option[XMLSelectorElement] = None,
+                                      lastMainPop: Option[SelectorElement] = None,
                                       ignoreInnerEvents: Boolean = false
                                     )
 
-  def apply[F[_] : RaiseThrowable](selector: String)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] =
-    apply(selector.toSelector)(stream)
+  def apply[F[_] : RaiseThrowable](selectorPath: String)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] =
+    apply(Selector(selectorPath))(stream)
 
-  def apply[F[_] : RaiseThrowable](selector: XMLSelector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
+  def apply[F[_] : RaiseThrowable](selector: Selector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
     //simple path with full inclusion
 
-    val exclLast = selector.props.contains(options.ExcludeLastSelectorElement)
+    val exclLast = selector.props.contains(ExcludeLastSelectorElement)
 
     val onlyFirst = !selector.path.exists(v => !v.stopOnAdjacent)
 

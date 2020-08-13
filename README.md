@@ -51,7 +51,7 @@ produces all "item" events from all "unit"
 root("root") |\| "unit" |\| "items" |\!| "item"
 produces 2 "item" events: from unit(@seq=1) and from unit(@seq=2)
 
-root("root") |\| ("unit", XMLSelectorAttr("seq", "1".some).app)
+root("root") |\| ("unit", "seq", "1")
 produces events from unit(@seq=1)
 ```
 Options can be used for behavior tuning.

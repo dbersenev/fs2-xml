@@ -16,4 +16,4 @@
 
 package org.dbersenev.fs2.xml.events
 
-case class XMLAttribute(name: String, value: Option[String] = None, ns: Option[String] = None)
+case class Attribute(name: String, value: Option[String] = None, ns: Option[String] = None)
