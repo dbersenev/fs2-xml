@@ -50,6 +50,9 @@ object EventStream {
     * @return
     */
   def apply[F[_] : ContextShift : ConcurrentEffect](blocker: Blocker, enc: Option[Codec] = None)(s: Stream[F, Byte]): Stream[F, XMLEvent] = {
+
+    import scala.jdk.CollectionConverters._
+
     def go(er: XMLEventReader): Pull[F, XMLEvent, Unit] =
       Pull.eval(
         blocker.delay {
@@ -63,13 +66,23 @@ object EventStream {
       ).flatMap(evO => evO.map(ev => Pull.output1(ev) >> go(er)).getOrElse(Pull.done)
       )
 
-    s.head.flatMap(_ =>
+    //different approaches to check input stream for emptiness
+    s.pull.uncons1.flatMap {
+      case Some((b, tail)) =>
+        (Stream.emit(b) ++ tail).through(io.toInputStream).flatMap(ins =>
+          Stream.bracket(blocker.blockOn(evReader(ins, enc)))(r =>
+            blocker.delay(r.close())
+          ).flatMap(r => Stream.fromBlockingIterator.apply(blocker, r.asInstanceOf[java.util.Iterator[XMLEvent]].asScala))
+        ).pull.echo
+      case _ => Pull.done
+    }.stream
+  /*  s.head.flatMap(_ =>
       s.through(io.toInputStream).flatMap(ins =>
         Stream.bracket(blocker.blockOn(evReader(ins, enc)))(r =>
           blocker.delay(r.close())
-        ).flatMap(r => go(r).stream)
+        ).flatMap(r => Stream.fromBlockingIterator.apply(blocker, r.asInstanceOf[java.util.Iterator[XMLEvent]].asScala))
       )
-    )
+    )*/
   }
 
 }
