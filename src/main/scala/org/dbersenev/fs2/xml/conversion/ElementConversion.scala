@@ -17,11 +17,10 @@
 package org.dbersenev.fs2.xml.conversion
 
 
-import cats._
 import cats.data.{Validated, ValidatedNec}
 import cats.implicits._
 
-import scala.xml.{Elem, Node, NodeSeq}
+import scala.xml.{Node, NodeSeq}
 
 trait ElementConversion[T] {
   def converted(el: Node): ElementConversion.ConversionResult[T]

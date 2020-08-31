@@ -16,9 +16,6 @@
 
 package org.dbersenev.fs2.xml.parsing
 
-import scala.language.higherKinds
-
-import cats._
 import cats.implicits._
 import fs2._
 
@@ -26,7 +23,7 @@ import javax.xml.stream.events.{StartElement, XMLEvent, Attribute => JAttr}
 import scala.xml._
 
 object ElementStream {
-  import scala.collection.JavaConverters._
+  import scala.jdk.CollectionConverters._
   import java.util.{Iterator => JIter}
 
   case class ElemWrap(elem: Elem, isClosed: Boolean)

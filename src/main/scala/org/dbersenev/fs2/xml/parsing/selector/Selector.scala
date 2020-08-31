@@ -17,45 +17,25 @@
 package org.dbersenev.fs2.xml.parsing.selector
 
 import cats.data._
-import cats.implicits._
-import org.dbersenev.fs2.xml.parsing.selector.SelectorPath.StringToPathExt
-
-import scala.language.implicitConversions
+import org.dbersenev.fs2.xml.parsing.selector.SelectorImplicits.StringToPathExt
 
 object Selector {
-  case class ExtractedAttr(name: String, value: String, ns: Option[String])
-
-  implicit class PathBuilderToSelector(val pb:SelectorPathBuilder) extends AnyVal {
-    def toSelector:Selector = Selector(pb.path)
-  }
-
-  implicit def pathBuilderToSelector(pb:SelectorPathBuilder):Selector = Selector(pb.path)
-
-  implicit def vecPathToSelector(path:NonEmptyVector[SelectorElement]):Selector = Selector(path)
-
-  def apply(path:String):Selector = Selector(path.toSelPath)
+  def apply(path: String): Selector = Selector(path.toSelPath)
 }
 
-import org.dbersenev.fs2.xml.parsing.selector.Selector._
-
+/**
+  * Allows selection of XML parts
+  * @param path - path to repeated elements, root is included
+  * @param props - configure behavior of selection
+  * @param ns - XML namespace
+  */
 case class Selector(
                      path: NonEmptyVector[SelectorElement],
                      props: Set[SelectorOption] = Set.empty,
                      ns: Option[String] = None
-                      ) {
-  val compiledStringEls: Vector[String] = path.map(_.entry).toVector
-  val compiledStringStops: Set[Vector[String]] = props.collect {
-    case StopBeforeSelector(p) => p.toVector.map(_.entry)
-  }
+                   ) {
 
-  lazy val hasAttributeSels: Boolean = path.exists(_.attrs.nonEmpty)
-
-  def isPrefix(l: Vector[String], lastAttrs: Set[ExtractedAttr]): Boolean =
-    (l.length <= path.length && compiledStringEls.startsWith(l)) && (lastAttrs.isEmpty || matchedSel(l).exists(_.attributesMatches(lastAttrs)))
-
-  private def matchedSel(l: Vector[String]): Option[SelectorElement] = path.toVector.drop(l.size - 1).headOption
+  lazy val hasAttributeSelectors: Boolean = path.exists(_.attrs.nonEmpty)
 
   def excludeLast: Selector = this.copy(props = props + ExcludeLastSelectorElement)
-
-  def isInStops(l: Vector[String]): Boolean = compiledStringStops.contains(l)
 }

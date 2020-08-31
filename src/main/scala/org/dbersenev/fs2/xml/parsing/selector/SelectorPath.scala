@@ -21,30 +21,16 @@ import cats.data.NonEmptyVector
 import scala.language.implicitConversions
 
 case class SelectorPathBuilder(path: NonEmptyVector[SelectorElement]) {
+
   def |\!|(el: SelectorElement): SelectorPathBuilder = SelectorPathBuilder(path.append(el))
 
   def |\|(el: SelectorElement): SelectorPathBuilder = SelectorPathBuilder(path.append(el.allowingAdjacent))
+
 }
 
 object SelectorPath {
 
-  def root(name: String, stopAdj: Boolean = true): SelectorPathBuilder = SelectorPathBuilder(NonEmptyVector.one(SelectorElement(name, stopOnAdjacent = stopAdj)))
-
-  implicit class StringToPathExt(val path:String) extends AnyVal {
-    def toSelPath: NonEmptyVector[SelectorElement] = NonEmptyVector.fromVector(
-      path.split("/")
-        .map(_.trim)
-        .filter(_.nonEmpty)
-        .zipWithIndex
-        .map {
-          case (el, 0) => SelectorElement(el)
-          case (el, _) => SelectorElement(el, stopOnAdjacent = false)
-        }
-        .toVector
-    ).get
-  }
-
-  implicit def builderToVecExtr(builder:SelectorPathBuilder):NonEmptyVector[SelectorElement] = builder.path
-
+  def root(name: String, stopAdj: Boolean = true): SelectorPathBuilder =
+    SelectorPathBuilder(NonEmptyVector.one(SelectorElement(name, stopOnAdjacent = stopAdj)))
 
 }

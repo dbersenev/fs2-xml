@@ -16,14 +16,10 @@
 
 package org.dbersenev.fs2.xml
 
-import cats._
 import cats.effect._
-import cats.implicits._
 import fs2._
 import javax.xml.stream.events.XMLEvent
 import org.dbersenev.fs2.xml.parsing.EventStream
-
-import scala.language.higherKinds
 
 object StreamFunctions {
 

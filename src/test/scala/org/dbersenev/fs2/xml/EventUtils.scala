@@ -18,7 +18,6 @@ package org.dbersenev.fs2.xml
 
 import cats.implicits.catsSyntaxOptionId
 import javax.xml.stream.XMLEventFactory
-import javax.xml.stream.events.{Characters, EndElement}
 
 object EventUtils {
 
