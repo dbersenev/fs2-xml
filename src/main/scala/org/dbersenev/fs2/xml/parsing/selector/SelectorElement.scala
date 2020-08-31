@@ -16,53 +16,19 @@
 
 package org.dbersenev.fs2.xml.parsing.selector
 
-import cats.implicits.catsSyntaxOptionId
-import org.dbersenev.fs2.xml.events.Attribute
-import org.dbersenev.fs2.xml.parsing.selector.Selector.ExtractedAttr
-
 import scala.language.implicitConversions
 
 case class SelectorElement(
-                               entry: String,
-                               stopOnAdjacent: Boolean = true, //do not process adjacent elements
-                               ns: Option[String] = None,
-                               attrs: List[Attribute] = List.empty
-                             ) {
-
-  lazy val compiledAttrs: Map[String, Attribute] = attrs.map(a => (a.name, a)).toMap
+                            entry: String,
+                            stopOnAdjacent: Boolean = true, //do not process adjacent elements
+                            ns: Option[String] = None,
+                            attrs: List[SelectorAttribute] = List.empty
+                          ) {
 
   def allowingAdjacent: SelectorElement = this.copy(stopOnAdjacent = false)
 
   def withNs(namespace: String): SelectorElement = this.copy(ns = Some(namespace))
 
-  def withAttr(a:Attribute): SelectorElement = this.copy(attrs = a :: attrs)
-
-  def attributesMatches(other: Set[ExtractedAttr]): Boolean = other.forall(extAttr => compiledAttrs.get(extAttr.name)
-    .forall(_.value.exists(_ == extAttr.value))
-  )
-}
-
-object SelectorElement {
-
-  implicit class XmlSelectorAttributeExt(val a:Attribute) extends AnyVal {
-    def withIntValue(v:Int):Attribute = a.copy(value = v.toString.some)
-  }
-
-  implicit class TripleToElAndAttr(val trp:(String,String,String)) extends AnyVal {
-    def toSelElem: SelectorElement = SelectorElement(
-      trp._1,
-      stopOnAdjacent = false,
-      ns = None,
-      attrs = Attribute(trp._2, trp._3.some) :: Nil
-    )
-  }
-
-  implicit def tripleToElAndAttr(trp:(String,String,String)):SelectorElement = trp.toSelElem
-
-  implicit class AnyStrToXmlSelEl(val s: String) extends AnyVal {
-    def toSelElem: SelectorElement = SelectorElement(s)
-  }
-
-  implicit def anyStrToXmlSelEl(s:String):SelectorElement = SelectorElement(s)
+  def withAttr(a: SelectorAttribute): SelectorElement = this.copy(attrs = a :: attrs)
 
 }

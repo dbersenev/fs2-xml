@@ -16,14 +16,10 @@
 
 package org.dbersenev.fs2.xml.parsing
 
-import scala.language.higherKinds
-import cats._
 import cats.implicits._
 import fs2._
-import cats.effect._
 import javax.xml.stream.events.{Attribute, StartElement, XMLEvent}
-import org.dbersenev.fs2.xml.parsing.selector.SelectorPath.StringToPathExt
-import org.dbersenev.fs2.xml.parsing.selector.{ExcludeLastSelectorElement, Selector, SelectorElement}
+import org.dbersenev.fs2.xml.parsing.selector.{ExcludeLastSelectorElement, ExtractedAttr, Selector, SelectorAttribute, SelectorElement, StopBeforeSelector}
 
 import scala.jdk.CollectionConverters._
 
@@ -38,16 +34,46 @@ object SelectedEventStream {
                                       ignoreInnerEvents: Boolean = false
                                     )
 
+  private class PreparedSelectorElement(val selectorElement:SelectorElement) {
+
+    val compiledAttrs: Map[String, SelectorAttribute] = selectorElement.attrs.map(a => (a.name, a)).toMap
+
+    def attributesMatches(other: Set[ExtractedAttr]): Boolean = other.forall(extAttr => compiledAttrs.get(extAttr.name)
+      .forall(_.value.exists(_ == extAttr.value))
+    )
+
+  }
+
+  private class PreparedSelector(val selector:Selector) {
+
+    val compiledElements:Vector[PreparedSelectorElement] = selector.path.map(new PreparedSelectorElement(_)).toVector
+
+    val compiledAsString: Vector[String] = compiledElements.map(_.selectorElement.entry)
+
+    //TODO implement complex stops (by attributes, etc)
+    val compiledStringStops: Set[Vector[String]] = selector.props.collect {
+      case StopBeforeSelector(p) => p.toVector.map(_.entry)
+    }
+
+    val isLastElementExcluded:Boolean = selector.props.contains(ExcludeLastSelectorElement)
+    val isIgnoreAdjacentElements:Boolean = !selector.path.exists(v => !v.stopOnAdjacent)
+
+    def isPrefix(l: Vector[String], lastAttrs: Set[ExtractedAttr]): Boolean =
+      (l.length <= selector.path.length && compiledAsString.startsWith(l)) && (lastAttrs.isEmpty || matchedSel(l).exists(_.attributesMatches(lastAttrs)))
+
+    def isInStops(l: Vector[String]): Boolean = compiledStringStops.contains(l)
+
+    private def matchedSel(l: Vector[String]): Option[PreparedSelectorElement] = compiledElements.drop(l.size - 1).headOption
+
+  }
+
   def apply[F[_] : RaiseThrowable](selectorPath: String)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] =
     apply(Selector(selectorPath))(stream)
 
   def apply[F[_] : RaiseThrowable](selector: Selector)(stream: Stream[F, XMLEvent]): Stream[F, XMLEvent] = {
     //simple path with full inclusion
 
-    val exclLast = selector.props.contains(ExcludeLastSelectorElement)
-
-    val onlyFirst = !selector.path.exists(v => !v.stopOnAdjacent)
-
+    val prepared = new PreparedSelector(selector)
 
     def filterEvents(acc: Vector[String], srcS: Stream[F, XMLEvent], extraEls: Vector[StartElement], cfg: SelectionConfig): Pull[F, XMLEvent, Unit] = {
 
@@ -65,9 +91,9 @@ object SelectedEventStream {
                   val newAcc = acc.dropRight(1) //removed last element from current path
                   val endEl = Some(selector.path.toVector.last) //last selector path element
                   //output last element if not excluded
-                  val tailF = if (onlyFirst) () => Pull.done
+                  val tailF = if (prepared.isIgnoreAdjacentElements) () => Pull.done
                   else () => filterEvents(newAcc, tails, Vector.empty, SelectionConfig(lastMainPop = endEl))
-                  if (!exclLast) Pull.output1(ev) >> tailF()
+                  if (!prepared.isLastElementExcluded) Pull.output1(ev) >> tailF()
                   else tailF()
                 } else {
                   Pull.raiseError(new ParsingException)
@@ -98,11 +124,11 @@ object SelectedEventStream {
                 //tentative path
                 val newAcc = acc :+ asStart.getName.getLocalPart
 
-                if (selector.isInStops(newAcc)) {
+                if (prepared.isInStops(newAcc)) {
                   Pull.done
                 } else if (
-                  selector.isPrefix(newAcc,
-                    if (selector.hasAttributeSels) asStart.getAttributes
+                  prepared.isPrefix(newAcc,
+                    if (selector.hasAttributeSelectors) asStart.getAttributes
                       .asInstanceOf[java.util.Iterator[Attribute]].asScala.toSet.map((a: Attribute) => ExtractedAttr(a.getName.getLocalPart, a.getValue, None))
                     else Set.empty
                   )
@@ -114,7 +140,7 @@ object SelectedEventStream {
                     if (newAcc.length == selector.path.length) {
                       //if path is matched
                       //in case of last element exclusion do not produce it in the output
-                      if (!exclLast) Pull.output1(ev) >> callFound(newAcc) else callFound(newAcc)
+                      if (!prepared.isLastElementExcluded) Pull.output1(ev) >> callFound(newAcc) else callFound(newAcc)
                     } else {
                       filterEvents(newAcc, tails, Vector.empty, SelectionConfig())
                     }
@@ -146,7 +172,7 @@ object SelectedEventStream {
                   //pop and remember popped selector
                   val (v1, v2) = selector.path.toVector.splitAt(acc.length - 1)
                   val selLast = v2.head
-                  if (onlyFirst || (selLast.stopOnAdjacent && v1.forall(el => el.stopOnAdjacent))) {
+                  if (prepared.isIgnoreAdjacentElements || (selLast.stopOnAdjacent && v1.forall(el => el.stopOnAdjacent))) {
                     Pull.done
                   }
                   else filterEvents(acc.dropRight(1), tails, Vector.empty, SelectionConfig(lastMainPop = Some(selLast)))
@@ -165,6 +191,8 @@ object SelectedEventStream {
 
     filterEvents(Vector.empty, stream, Vector.empty, SelectionConfig()).stream
   }
+
+
 
 
 }

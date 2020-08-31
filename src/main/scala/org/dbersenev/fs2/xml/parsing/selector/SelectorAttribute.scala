@@ -1,5 +1,5 @@
 /*
- * Copyright [2019] [Dmitry Bersenev]
+ * Copyright [2020] [Dmitry Bersenev]
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
-package org.dbersenev.fs2.xml.events
+package org.dbersenev.fs2.xml.parsing.selector
 
-case class Attribute(name: String, value: Option[String] = None, ns: Option[String] = None)
+case class SelectorAttribute(name: String, value: Option[String] = None, ns: Option[String] = None)
+case class ExtractedAttr(name: String, value: String, ns: Option[String])

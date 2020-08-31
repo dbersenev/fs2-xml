@@ -23,7 +23,7 @@ import EventUtils._
 import org.dbersenev.fs2.xml.parsing.SelectedEventStream
 import org.dbersenev.fs2.xml.parsing.selector.SelectorPath.root
 import org.dbersenev.fs2.xml.parsing.selector._
-import org.dbersenev.fs2.xml.parsing.selector.SelectorPath._
+import SelectorImplicits._
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
